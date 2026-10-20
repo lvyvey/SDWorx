@@ -287,16 +287,18 @@ class AskAround:
 
         if evaluation and answer_conf >= HIGH_THRESHOLD and verified and evaluation["colleagues"] >= 2:
             return "high", answer_conf, ["Answered before, verified and confirmed by several colleagues"]
+        # At the "low" level the returned confidence is still about the *answer* (usually 0: there is none).
+        # How well each expert matches is reported separately, per expert.
         if risks and not verified:
             reasons.append("Routed to an expert because there is no verified answer")
-            return "low", people[0]["confidence"] if people else 0.0, reasons
+            return "low", answer_conf, reasons
         if evaluation and answer_conf >= MEDIUM_THRESHOLD:
             return "medium", answer_conf, reasons
         if not evaluation and documents and documents[0]["confidence"] >= 0.45 and not risks:
             reasons.append("A matching document exists, but nobody answered this exact question yet")
             # A draft taken straight from a document is never more than "medium" sure.
             return "medium", min(documents[0]["confidence"], HIGH_THRESHOLD) * 0.85, reasons
-        return "low", people[0]["confidence"] if people else 0.0, reasons
+        return "low", answer_conf, reasons
 
     # ------------------------------------------------------------------ views
 
