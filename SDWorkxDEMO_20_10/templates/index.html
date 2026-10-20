@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AskAround</title>
+<style>
+  :root {
+    --rail: #2b2b40; --brand: #5b5fc7; --brand-soft: #e8e9fb; --bg: #f5f5f5; --panel: #fff;
+    --text: #242424; --muted: #616161; --border: #e0e0e0;
+    --high: #107c41; --high-soft: #e5f4ea; --medium: #b86e00; --medium-soft: #fdf3e1;
+    --low: #c4314b; --low-soft: #fbe9ec;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif; color: var(--text);
+         background: var(--bg); height: 100vh; display: flex; font-size: 14px; }
+
+  /* --- mock Teams window ------------------------------------------------ */
+  .rail { width: 64px; background: var(--rail); display: flex; flex-direction: column; align-items: center;
+          padding-top: 12px; gap: 14px; color: #c8c8d8; font-size: 11px; }
+  .rail div { text-align: center; cursor: default; }
+  .rail .icon { width: 32px; height: 32px; border-radius: 6px; background: #3d3d5c; margin: 0 auto 3px;
+                display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .rail .active .icon { background: var(--brand); color: #fff; }
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .topbar { height: 48px; background: #ebebeb; border-bottom: 1px solid var(--border); display: flex;
+            align-items: center; padding: 0 20px; gap: 12px; }
+  .topbar .search { flex: 1; max-width: 480px; background: #fff; border-radius: 6px; padding: 7px 12px; color: var(--muted); }
+  .launch { margin-left: auto; background: var(--brand); color: #fff; border: 0; border-radius: 6px;
+            padding: 7px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  .chat { flex: 1; padding: 28px; color: var(--muted); overflow: auto; }
+  .chat .bubble { background: #fff; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; max-width: 520px; }
+
+  /* --- AskAround pop-up ------------------------------------------------- */
+  .popup { position: fixed; right: 24px; top: 64px; bottom: 24px; width: 460px; max-width: calc(100vw - 32px);
+           background: var(--panel); border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,.18);
+           display: flex; flex-direction: column; overflow: hidden; }
+  .popup.hidden { display: none; }
+  .popup header { background: var(--brand); color: #fff; padding: 14px 16px; display: flex; align-items: center; gap: 10px; }
+  .popup header .logo { width: 30px; height: 30px; border-radius: 50%; background: #fff; color: var(--brand);
+                        display: flex; align-items: center; justify-content: center; font-weight: 800; }
+  .popup header h1 { font-size: 16px; margin: 0; }
+  .popup header p { margin: 0; font-size: 12px; opacity: .85; }
+  .popup header .actions { margin-left: auto; display: flex; gap: 6px; }
+  .popup header button { background: rgba(255,255,255,.15); color: #fff; border: 0; border-radius: 4px;
+                         padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+  .body { flex: 1; overflow-y: auto; padding: 16px; }
+  .ask { border-top: 1px solid var(--border); padding: 12px; }
+  .ask form { display: flex; gap: 8px; }
+  .ask input { flex: 1; border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; font: inherit; }
+  .ask input:focus { outline: 2px solid var(--brand); border-color: transparent; }
+  .btn { background: var(--brand); color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit;
+         font-weight: 600; cursor: pointer; }
+  .btn.ghost { background: #fff; color: var(--brand); border: 1px solid var(--brand); }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { background: var(--brand-soft); color: var(--brand); border: 0; border-radius: 12px; padding: 4px 10px;
+          font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+
+  .welcome { color: var(--muted); line-height: 1.5; }
+  .q { background: var(--brand-soft); border-radius: 8px; padding: 8px 12px; margin: 0 0 10px auto; width: fit-content;
+       max-width: 85%; }
+  .card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 18px; }
+  .level { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .badge { border-radius: 10px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+  .high .badge { background: var(--high-soft); color: var(--high); }
+  .medium .badge { background: var(--medium-soft); color: var(--medium); }
+  .low .badge { background: var(--low-soft); color: var(--low); }
+  .meter { flex: 1; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
+  .meter span { display: block; height: 100%; }
+  .high .meter span { background: var(--high); } .medium .meter span { background: var(--medium); }
+  .low .meter span { background: var(--low); }
+  .pct { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .card h3 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .answer { font-size: 15px; line-height: 1.45; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .source { background: #fafafa; border-left: 3px solid var(--brand); border-radius: 4px; padding: 8px 10px; margin-bottom: 8px; }
+  .source .title { font-weight: 600; }
+  .source blockquote { margin: 6px 0 0; font-size: 13px; line-height: 1.4; }
+  mark { background: #fff1a8; padding: 0 1px; border-radius: 2px; }
+  .expert { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+  .expert:last-child { border-bottom: 0; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; flex: none;
+            display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+  .expert .info { flex: 1; min-width: 0; }
+  .expert .name { font-weight: 600; }
+  .expert .why { color: var(--muted); font-size: 12px; }
+  .expert .score { text-align: right; font-size: 12px; color: var(--muted); }
+  .expert .score b { display: block; font-size: 15px; color: var(--text); }
+  textarea { width: 100%; min-height: 120px; border: 1px solid var(--border); border-radius: 6px; padding: 8px;
+             font: inherit; font-size: 13px; resize: vertical; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .reasons { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .demo { margin-top: 12px; padding: 10px; border: 1px dashed #c8c8c8; border-radius: 6px; background: #fcfcfc; }
+  .demo .label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  details { margin-top: 12px; font-size: 12px; color: var(--muted); }
+  details summary { cursor: pointer; }
+  details table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  details td { padding: 2px 4px; border-bottom: 1px solid #f0f0f0; }
+  details td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .toast { color: var(--high); font-size: 12px; font-weight: 600; }
+  .error { color: var(--low); }
+</style>
+</head>
+<body>
+<nav class="rail">
+  <div><div class="icon">A</div>Activity</div>
+  <div class="active"><div class="icon">C</div>Chat</div>
+  <div><div class="icon">T</div>Teams</div>
+  <div><div class="icon">K</div>Calendar</div>
+</nav>
+<div class="main">
+  <div class="topbar">
+    <div class="search">Search</div>
+    <button class="launch" id="launch">AskAround</button>
+  </div>
+  <div class="chat">
+    <div class="bubble"><b>Team Payroll BE</b><br>Does anyone know how long we keep payslips of people who left?</div>
+    <div class="bubble"><b>Team Payroll BE</b><br>Try AskAround in the top bar 👆</div>
+  </div>
+</div>
+
+<section class="popup" id="popup">
+  <header>
+    <div class="logo">A</div>
+    <div><h1>AskAround</h1><p>Trusted answers from the people who know</p></div>
+    <div class="actions">
+      <button id="reset" title="Restore the demo data">Reset demo</button>
+      <button id="close" title="Close">✕</button>
+    </div>
+  </header>
+  <div class="body" id="thread">
+    <p class="welcome">Ask any work question. AskAround answers directly when it is sure, suggests a quick
+      check by an expert when it is fairly sure, and otherwise connects you with the right colleagues.</p>
+  </div>
+  <div class="ask">
+    <form id="form">
+      <input id="question" placeholder="Type your question…" autocomplete="off">
+      <button class="btn" type="submit">Ask</button>
+    </form>
+    <div class="examples" id="examples"></div>
+  </div>
+</section>
+
+<script>
+const EXAMPLES = [
+  "How long must we keep payslips after an employee leaves?",
+  "Is the end-of-year bonus subject to social security contributions?",
+  "What are the employer social security contributions for a first hire?",
+  "Can we dismiss an employee who is on sick leave?",
+  "What price do we charge a retail customer with 500 employees for payroll outsourcing?",
+];
+const LEVEL_TEXT = {
+  high: "High confidence · ready-made answer",
+  medium: "Medium confidence · answer to verify",
+  low: "Low confidence · the right people",
+};
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const thread = $("#thread");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pct = x => Math.round(x * 100) + "%";
+const initials = name => name.split(" ").map(p => p[0]).slice(0, 2).join("");
+
+async function api(path, body) {
+  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify(body || {}) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+for (const q of EXAMPLES) {
+  const chip = document.createElement("button");
+  chip.className = "chip"; chip.textContent = q;
+  chip.onclick = () => ask(q);
+  $("#examples").append(chip);
+}
+$("#form").onsubmit = e => { e.preventDefault(); ask($("#question").value); };
+$("#launch").onclick = () => $("#popup").classList.toggle("hidden");
+$("#close").onclick = () => $("#popup").classList.add("hidden");
+$("#reset").onclick = async () => { await api("/api/reset"); thread.innerHTML =
+  '<p class="welcome">Demo data restored. Ask a question to start again.</p>'; };
+
+async function ask(question) {
+  question = question.trim();
+  if (!question) return;
+  $("#question").value = "";
+  $(".welcome")?.remove();
+  const q = document.createElement("div");
+  q.className = "q"; q.textContent = question;
+  thread.append(q);
+  const card = document.createElement("div");
+  card.className = "card"; card.textContent = "Searching the network…";
+  thread.append(card);
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    render(card, await api("/api/ask", { question }));
+  } catch (err) {
+    card.innerHTML = `<span class="error">${esc(err.message)}</span>`;
+  }
+}
+
+function header(r) {
+  return `<div class="level"><span class="badge">${LEVEL_TEXT[r.level]}</span>
+    <div class="meter"><span style="width:${pct(r.confidence)}"></span></div>
+    <span class="pct">${pct(r.confidence)}</span></div>`;
+}
+
+function sources(list) {
+  return list.map(s => `<div class="source">
+      <div class="title">📄 ${esc(s.title)}</div>
+      <div class="meta">Last updated ${esc(s.last_update)} · document confidence ${pct(s.confidence)}</div>
+      ${s.passages.map(p => `<blockquote>“${p.html}”</blockquote>`).join("")}
+    </div>`).join("");
+}
+
+function expertRow(e, extra = "") {
+  return `<div class="expert"><div class="avatar">${esc(initials(e.name))}</div>
+    <div class="info"><div class="name">${esc(e.name)}</div>
+      <div class="why">${esc(e.position)} · ${esc(e.office)}</div>
+      <div class="why">${e.why.map(esc).join(" · ")}</div>${extra}</div>
+    <div class="score"><b>${pct(e.confidence)}</b>match</div></div>`;
+}
+
+function explain(r) {
+  const rows = r.propagation.map(n => `<tr><td>${esc(n.label)}</td><td>${esc(n.type)}</td><td>${n.score}</td></tr>`).join("");
+  return `<details><summary>Why this result?</summary>
+    <ul class="reasons">${r.reasons.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    ${r.expertise_areas.length ? `<p>Expertise detected: ${r.expertise_areas.map(esc).join(", ")}</p>` : ""}
+    ${rows ? `<p>Top nodes after personalized PageRank (α = 0.85):</p><table>${rows}</table>` : ""}
+  </details>`;
+}
+
+function render(card, r) {
+  card.className = `card ${r.level}`;
+  if (r.level === "high") renderHigh(card, r);
+  else if (r.level === "medium") renderMedium(card, r);
+  else renderLow(card, r);
+  card.insertAdjacentHTML("beforeend", explain(r));
+}
+
+function renderHigh(card, r) {
+  const a = r.answer;
+  const confirmed = a.confirmed_by.length ? `, confirmed by ${a.confirmed_by.map(esc).join(", ")}` : "";
+  card.innerHTML = header(r) + `
+    <div class="answer">${esc(a.text)}</div>
+    <div class="meta">Answered by ${esc(a.answered_by)}${confirmed} · last verified by an expert on
+      <b>${esc(a.verified_on)}</b> · 👍 ${a.helpful} 👎 ${a.not_helpful}</div>
+    <h3>Sources</h3>${sources(r.sources)}
+    <div class="row"><span>Did this help?</span>
+      <button class="btn small ghost" data-h="1">👍 Yes</button>
+      <button class="btn small ghost" data-h="0">👎 No</button><span class="toast"></span></div>`;
+  card.querySelectorAll("[data-h]").forEach(b => b.onclick = async () => {
+    const res = await api("/api/rate", { answer_id: a.id, helpful: b.dataset.h === "1" });
+    card.querySelectorAll("[data-h]").forEach(x => x.disabled = true);
+    $(".toast", card).textContent = `Thanks! Feedback saved (👍 ${res.helpful} 👎 ${res.not_helpful}).`;
+  });
+}
+
+function renderMedium(card, r) {
+  const a = r.answer, expert = r.experts[0];
+  const by = a.draft_from_document ? "Draft taken from the document below" :
+    `Answered by ${esc(a.answered_by)} · last verified ${esc(a.verified_on || "never")}`;
+  card.innerHTML = header(r) + `
+    <div class="answer">${esc(a.text)}</div>
+    <div class="meta">${by}</div>
+    <ul class="reasons" style="margin-top:8px">${r.reasons.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    <h3>Source</h3>${sources(r.sources)}
+    <h3>Ask an expert to verify</h3>${expertRow(expert)}
+    <textarea class="msg">${esc(r.message.text)}</textarea>
+    <div class="row"><button class="btn small send">Send in Teams to ${esc(expert.name.split(" ")[0])}</button>
+      <span class="toast"></span></div>
+    <div class="demo"><div class="label">Demo: ${esc(expert.name.split(" ")[0])} replies</div>
+      <div class="row" style="margin-top:0">
+        <button class="btn small ghost" data-c="1">✓ Still correct</button>
+        <button class="btn small ghost" data-c="0">✗ Outdated</button><span class="toast verify"></span></div></div>`;
+  $(".send", card).onclick = () => {
+    $(".send", card).disabled = true;
+    $(".toast", card).textContent = "Sent (simulated). You'll be notified when they reply.";
+  };
+  card.querySelectorAll("[data-c]").forEach(b => b.onclick = async () => {
+    const correct = b.dataset.c === "1";
+    await api("/api/verify", { question: r.question, answer_text: a.text, employee_id: expert.employee_id,
+      document_ids: r.sources.map(s => s.id), correct, answer_id: a.id || null });
+    card.querySelectorAll("[data-c]").forEach(x => x.disabled = true);
+    $(".verify", card).innerHTML = correct
+      ? `Verified and stored. <a href="#" class="again">Ask again</a> to see the new confidence.`
+      : "Marked as outdated; this answer won't be reused until it is fixed.";
+    $(".again", card)?.addEventListener("click", e => { e.preventDefault(); ask(r.question); });
+  });
+}
+
+function renderLow(card, r) {
+  if (!r.experts.length) {
+    card.innerHTML = header(r) + `<p>${r.not_answered_before ? "<b>Not answered before.</b> " : ""}
+      No documents or colleagues in the network match this question. Try rephrasing it with more specific terms.</p>`;
+    return;
+  }
+  const intro = r.risk_topics.length
+    ? `This is a <b>${r.risk_topics.map(esc).join(" / ")}</b> question without a verified answer, so AskAround won't guess.`
+    : (r.not_answered_before ? "<b>Not answered before.</b> " : "") + "AskAround isn't sure enough to answer.";
+  card.innerHTML = header(r) + `<p style="margin-top:0">${intro} These colleagues are your best bet:</p>
+    ${r.experts.map((e, i) => expertRow(e, `<div class="row"><button class="btn small ghost" data-i="${i}">💬 Message</button></div>
+      <textarea class="msg" data-m="${i}" hidden>${esc(e.message)}</textarea>`)).join("")}
+    <div class="demo"><div class="label">Demo: ${esc(r.experts[0].name.split(" ")[0])} answered; save it for next time</div>
+      <textarea class="captured" placeholder="Paste the expert's answer…" style="min-height:70px"></textarea>
+      <div class="row"><button class="btn small save">Save as verified answer</button><span class="toast"></span></div></div>`;
+  card.querySelectorAll("[data-i]").forEach(b => b.onclick = () => {
+    const box = $(`[data-m="${b.dataset.i}"]`, card);
+    box.hidden = !box.hidden;
+  });
+  $(".save", card).onclick = async () => {
+    try {
+      await api("/api/answer", { question: r.question, answer_text: $(".captured", card).value,
+        employee_id: r.experts[0].employee_id, document_ids: r.related_documents });
+      $(".save", card).disabled = true;
+      $(".toast", card).innerHTML = `Saved. <a href="#" class="again">Ask again</a>`;
+      $(".again", card).onclick = e => { e.preventDefault(); ask(r.question); };
+    } catch (err) {
+      $(".toast", card).innerHTML = `<span class="error">${esc(err.message)}</span>`;
+    }
+  };
+}
+</script>
+</body>
+</html>
