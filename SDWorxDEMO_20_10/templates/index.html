@@ -86,8 +86,15 @@
   .expert .info { flex: 1; min-width: 0; }
   .expert .name { font-weight: 600; }
   .expert .why { color: var(--muted); font-size: 12px; }
-  .expert .score { text-align: right; font-size: 12px; color: var(--muted); }
-  .expert .score b { display: block; font-size: 15px; color: var(--text); }
+  .expert .score { text-align: right; font-size: 12px; color: var(--muted); width: 64px; flex: none; }
+  .expert .score b { display: block; font-size: 15px; }
+  .mini { height: 4px; background: #eee; border-radius: 2px; overflow: hidden; margin: 3px 0 2px; }
+  .mini span { display: block; height: 100%; }
+  /* People are coloured on their own scale: how well they match the question, not answer confidence. */
+  .match-strong b { color: var(--high); }   .match-strong .mini span { background: var(--high); }
+  .match-fair b { color: var(--medium); }   .match-fair .mini span { background: var(--medium); }
+  .match-weak b { color: var(--muted); }    .match-weak .mini span { background: #9e9e9e; }
+  .pct small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); text-align: right; }
   textarea { width: 100%; min-height: 120px; border: 1px solid var(--border); border-radius: 6px; padding: 8px;
              font: inherit; font-size: 13px; resize: vertical; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
@@ -203,10 +210,16 @@ async function ask(question) {
 }
 
 function header(r) {
-  return `<div class="level"><span class="badge">${LEVEL_TEXT[r.level]}</span>
+  // The header always shows confidence in the *answer*, coloured by level.
+  const label = r.level === "low" && r.risk_topics.length
+    ? `Routed to an expert · ${r.risk_topics.map(esc).join(" / ")} topic`
+    : LEVEL_TEXT[r.level];
+  return `<div class="level"><span class="badge">${label}</span>
     <div class="meter"><span style="width:${pct(r.confidence)}"></span></div>
-    <span class="pct">${pct(r.confidence)}</span></div>`;
+    <span class="pct">${pct(r.confidence)}<small>answer</small></span></div>`;
 }
+
+const matchClass = c => c >= 0.70 ? "match-strong" : c >= 0.40 ? "match-fair" : "match-weak";
 
 function sources(list) {
   return list.map(s => `<div class="source">
@@ -221,7 +234,8 @@ function expertRow(e, extra = "") {
     <div class="info"><div class="name">${esc(e.name)}</div>
       <div class="why">${esc(e.position)} · ${esc(e.office)}</div>
       <div class="why">${e.why.map(esc).join(" · ")}</div>${extra}</div>
-    <div class="score"><b>${pct(e.confidence)}</b>match</div></div>`;
+    <div class="score ${matchClass(e.confidence)}"><b>${pct(e.confidence)}</b>
+      <div class="mini"><span style="width:${pct(e.confidence)}"></span></div>expert match</div></div>`;
 }
 
 function explain(r) {
